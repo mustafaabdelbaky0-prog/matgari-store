@@ -1,0 +1,16 @@
+{
+  "name": "متجري",
+  "version": "1.0.0",
+  "description": "أبليكيشن بسيط لإدارة أي متجر أونلاين: مشتريات، مبيعات، خزنة، مخزون، وصفحة بيع (لاندنج بيدج) بتتحدث أوتوماتيك.",
+  "private": true,
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {}
+}
