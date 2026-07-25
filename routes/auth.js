@@ -157,6 +157,8 @@ function registerRoutes(router) {
       rawSelectIsArray: Array.isArray(rawSelect),
       reqMerchant: req.merchant,
       reqMerchantType: typeof req.merchant,
+      reqMerchantJSON: JSON.stringify(req.merchant),
+      reqOwnKeys: Object.getOwnPropertyNames(req).filter(k => k.length < 30).slice(0, 40),
     };
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(info));
