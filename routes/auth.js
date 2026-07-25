@@ -137,6 +137,20 @@ function registerRoutes(router) {
     res.end();
   });
 
+  router.get('/whatisreq', async (req, res) => {
+    const info = {
+      url: req.url,
+      method: req.method,
+      cookieHeader: req.headers.cookie || null,
+      merchantTruthy: !!req.merchant,
+      merchantType: typeof req.merchant,
+      merchantIsNull: req.merchant === null,
+      merchantSample: req.merchant && typeof req.merchant === 'object' ? Object.keys(req.merchant).slice(0, 10) : null,
+    };
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify(info));
+  });
+
   router.get('/logout', async (req, res) => {
     // Convenience GET so you can just visit /logout to end a session.
     const cookies = parseCookies(req);
