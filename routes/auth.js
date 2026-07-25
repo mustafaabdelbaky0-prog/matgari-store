@@ -127,8 +127,27 @@ function registerRoutes(router) {
   router.post('/logout', async (req, res) => {
     const cookies = parseCookies(req);
     await destroySession(cookies.session);
-    setCookie(res, 'session', '', { maxAge: 0 });
-    redirect(res, '/login');
+    // Send Set-Cookie directly to avoid any helper-header ordering issues.
+    res.setHeader('Set-Cookie', [
+      'session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax',
+      'session=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+    ]);
+    res.setHeader('Location', '/login');
+    res.statusCode = 302;
+    res.end();
+  });
+
+  router.get('/logout', async (req, res) => {
+    // Convenience GET so you can just visit /logout to end a session.
+    const cookies = parseCookies(req);
+    await destroySession(cookies.session);
+    res.setHeader('Set-Cookie', [
+      'session=; Path=/; HttpOnly; Max-Age=0; SameSite=Lax',
+      'session=; Path=/; HttpOnly; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax',
+    ]);
+    res.setHeader('Location', '/login');
+    res.statusCode = 302;
+    res.end();
   });
 
   router.get('/onboarding', (req, res) => {
