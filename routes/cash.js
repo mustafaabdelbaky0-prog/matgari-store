@@ -1,19 +1,19 @@
-const db = require('../lib/db');
+const { query, queryOne, exec } = require('../lib/db');
 const { dashboardPage, esc, money } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
-  router.get('/dashboard/cash', (req, res) => {
+  router.get('/dashboard/cash', async (req, res) => {
     const m = req.merchant;
-    const totals = db.prepare(`
+    const totals = await queryOne(`
       SELECT
         COALESCE(SUM(CASE WHEN type IN ('sale','income') THEN amount ELSE 0 END),0) AS income,
         COALESCE(SUM(CASE WHEN type IN ('purchase','expense') THEN amount ELSE 0 END),0) AS expense
-      FROM transactions WHERE merchant_id = ?
-    `).get(m.id);
-    const balance = totals.income - totals.expense;
-    const list = db.prepare('SELECT * FROM transactions WHERE merchant_id = ? ORDER BY id DESC LIMIT 80').all(m.id);
+      FROM transactions WHERE merchant_id = $1
+    `, [m.id]);
+    const balance = Number(totals.income) - Number(totals.expense);
+    const list = await query('SELECT * FROM transactions WHERE merchant_id = $1 ORDER BY id DESC LIMIT 80', [m.id]);
 
     const typeMeta = {
       sale: { icon: '🧾', label: 'بيع', sign: '+' },
@@ -80,10 +80,10 @@ function registerRoutes(router) {
     const amount = parseFloat(b.amount) || 0;
     if (amount <= 0) return redirect(res, '/dashboard/cash');
 
-    db.prepare(`
+    await exec(`
       INSERT INTO transactions (merchant_id, type, quantity, amount, note)
-      VALUES (?, ?, 1, ?, ?)
-    `).run(m.id, type, amount, (b.note || '').trim());
+      VALUES ($1, $2, 1, $3, $4)
+    `, [m.id, type, amount, (b.note || '').trim()]);
 
     redirect(res, '/dashboard/cash');
   });

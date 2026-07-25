@@ -1,4 +1,4 @@
-const db = require('../lib/db');
+const { exec } = require('../lib/db');
 const { dashboardPage, esc, CATEGORIES } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
@@ -61,8 +61,10 @@ function registerRoutes(router) {
     const category = b.category || m.category;
     const whatsapp = (b.whatsapp || '').trim();
 
-    db.prepare('UPDATE merchants SET store_name = ?, category = ?, whatsapp = ? WHERE id = ?')
-      .run(storeName, category, whatsapp, m.id);
+    await exec(
+      'UPDATE merchants SET store_name = $1, category = $2, whatsapp = $3 WHERE id = $4',
+      [storeName, category, whatsapp, m.id]
+    );
 
     redirect(res, '/dashboard/settings');
   });

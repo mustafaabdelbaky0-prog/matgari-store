@@ -1,27 +1,28 @@
-const db = require('../lib/db');
+const { queryOne, query } = require('../lib/db');
 const { dashboardPage, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
 
 function registerRoutes(router) {
-  router.get('/dashboard', (req, res) => {
+  router.get('/dashboard', async (req, res) => {
     const m = req.merchant;
 
-    const balanceRow = db.prepare(`
+    const balanceRow = await queryOne(`
       SELECT
         COALESCE(SUM(CASE WHEN type IN ('sale','income') THEN amount ELSE 0 END),0) AS income,
         COALESCE(SUM(CASE WHEN type IN ('purchase','expense') THEN amount ELSE 0 END),0) AS expense
-      FROM transactions WHERE merchant_id = ?
-    `).get(m.id);
-    const balance = balanceRow.income - balanceRow.expense;
+      FROM transactions WHERE merchant_id = $1
+    `, [m.id]);
+    const balance = Number(balanceRow.income) - Number(balanceRow.expense);
 
-    const todayRow = db.prepare(`
+    const todayRow = await queryOne(`
       SELECT COALESCE(SUM(amount),0) AS total, COUNT(*) AS cnt
-      FROM transactions WHERE merchant_id = ? AND type='sale' AND date(created_at) = date('now')
-    `).get(m.id);
+      FROM transactions WHERE merchant_id = $1 AND type='sale' AND created_at::date = CURRENT_DATE
+    `, [m.id]);
 
-    const productsCount = db.prepare('SELECT COUNT(*) AS c FROM products WHERE merchant_id = ?').get(m.id).c;
-    const lowStock = db.prepare('SELECT * FROM products WHERE merchant_id = ? AND quantity <= 3 ORDER BY quantity ASC LIMIT 5').all(m.id);
-    const recent = db.prepare('SELECT * FROM transactions WHERE merchant_id = ? ORDER BY id DESC LIMIT 5').all(m.id);
+    const countRow = await queryOne('SELECT COUNT(*) AS c FROM products WHERE merchant_id = $1', [m.id]);
+    const productsCount = Number(countRow.c);
+    const lowStock = await query('SELECT * FROM products WHERE merchant_id = $1 AND quantity <= 3 ORDER BY quantity ASC LIMIT 5', [m.id]);
+    const recent = await query('SELECT * FROM transactions WHERE merchant_id = $1 ORDER BY id DESC LIMIT 5', [m.id]);
 
     const storeUrl = `/store/${m.slug}`;
 

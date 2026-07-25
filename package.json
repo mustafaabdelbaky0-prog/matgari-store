@@ -12,5 +12,7 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  }
 }

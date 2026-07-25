@@ -1,4 +1,4 @@
-const db = require('../lib/db');
+const { queryOne, exec } = require('../lib/db');
 const { hashPassword, verifyPassword, createSession, destroySession, uniqueSlug, setCookie, parseCookies } = require('../lib/auth');
 const { page, esc, CATEGORIES } = require('../lib/view');
 const { parseBody } = require('../lib/body');
@@ -24,29 +24,16 @@ function authLayout({ title, subtitle, body, error, success }) {
 }
 
 function registerRoutes(router) {
-  // ---------- تسجيل حساب جديد ----------
   router.get('/register', (req, res) => {
     sendHtml(res, 200, authLayout({
       title: 'ابدأ متجرك',
       subtitle: 'سجّل بياناتك عشان تبدأ تدير مبيعاتك في دقيقة',
       body: `
       <form method="POST" action="/register">
-        <div class="field">
-          <label>اسمك</label>
-          <input type="text" name="name" required placeholder="مثال: أحمد محمد">
-        </div>
-        <div class="field">
-          <label>اسم المتجر</label>
-          <input type="text" name="store_name" required placeholder="مثال: متجر لمسة">
-        </div>
-        <div class="field">
-          <label>رقم الموبايل</label>
-          <input type="tel" name="phone" required placeholder="01xxxxxxxxx">
-        </div>
-        <div class="field">
-          <label>كلمة المرور</label>
-          <input type="password" name="password" required minlength="4" placeholder="6 أحرف أو أكتر">
-        </div>
+        <div class="field"><label>اسمك</label><input type="text" name="name" required placeholder="مثال: أحمد محمد"></div>
+        <div class="field"><label>اسم المتجر</label><input type="text" name="store_name" required placeholder="مثال: متجر لمسة"></div>
+        <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required placeholder="01xxxxxxxxx"></div>
+        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="4" placeholder="6 أحرف أو أكتر"></div>
         <button class="btn btn-primary" type="submit">إنشاء الحساب</button>
       </form>
       <div class="auth-switch">عندك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a></div>
@@ -80,35 +67,29 @@ function registerRoutes(router) {
     if (!name || !storeName || !phone || !password) return fail('من فضلك املأ كل البيانات');
     if (password.length < 4) return fail('كلمة المرور لازم تكون 4 أحرف على الأقل');
 
-    const existing = db.prepare('SELECT id FROM merchants WHERE phone = ?').get(phone);
+    const existing = await queryOne('SELECT id FROM merchants WHERE phone = $1', [phone]);
     if (existing) return fail('في حساب مسجل بالرقم ده بالفعل، جرب تسجيل الدخول');
 
-    const slug = uniqueSlug(storeName);
+    const slug = await uniqueSlug(storeName);
     const passwordHash = hashPassword(password);
-    const info = db
-      .prepare('INSERT INTO merchants (name, phone, password_hash, store_name, slug) VALUES (?, ?, ?, ?, ?)')
-      .run(name, phone, passwordHash, storeName, slug);
+    const inserted = await queryOne(
+      'INSERT INTO merchants (name, phone, password_hash, store_name, slug) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      [name, phone, passwordHash, storeName, slug]
+    );
 
-    const token = createSession(info.lastInsertRowid);
+    const token = await createSession(inserted.id);
     setCookie(res, 'session', token, { maxAge: 60 * 60 * 24 * 60 });
     redirect(res, '/onboarding');
   });
 
-  // ---------- تسجيل الدخول ----------
   router.get('/login', (req, res) => {
     sendHtml(res, 200, authLayout({
       title: 'أهلاً بيك تاني',
       subtitle: 'سجّل دخولك عشان تكمل شغلك في متجرك',
       body: `
       <form method="POST" action="/login">
-        <div class="field">
-          <label>رقم الموبايل</label>
-          <input type="tel" name="phone" required placeholder="01xxxxxxxxx">
-        </div>
-        <div class="field">
-          <label>كلمة المرور</label>
-          <input type="password" name="password" required>
-        </div>
+        <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required placeholder="01xxxxxxxxx"></div>
+        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required></div>
         <button class="btn btn-primary" type="submit">دخول</button>
       </form>
       <div class="auth-switch">لسه مالكش حساب؟ <a href="/register">سجّل متجرك دلوقتي</a></div>
@@ -120,7 +101,7 @@ function registerRoutes(router) {
     const b = await parseBody(req);
     const phone = (b.phone || '').trim();
     const password = (b.password || '').trim();
-    const merchant = db.prepare('SELECT * FROM merchants WHERE phone = ?').get(phone);
+    const merchant = await queryOne('SELECT * FROM merchants WHERE phone = $1', [phone]);
 
     const fail = () => sendHtml(res, 400, authLayout({
       title: 'أهلاً بيك تاني',
@@ -138,19 +119,18 @@ function registerRoutes(router) {
 
     if (!merchant || !verifyPassword(password, merchant.password_hash)) return fail();
 
-    const token = createSession(merchant.id);
+    const token = await createSession(merchant.id);
     setCookie(res, 'session', token, { maxAge: 60 * 60 * 24 * 60 });
     redirect(res, merchant.onboarded ? '/dashboard' : '/onboarding');
   });
 
-  router.post('/logout', (req, res) => {
+  router.post('/logout', async (req, res) => {
     const cookies = parseCookies(req);
-    destroySession(cookies.session);
+    await destroySession(cookies.session);
     setCookie(res, 'session', '', { maxAge: 0 });
     redirect(res, '/login');
   });
 
-  // ---------- اختيار المجال (أونبوردنج) ----------
   router.get('/onboarding', (req, res) => {
     if (!req.merchant) return redirect(res, '/login');
     sendHtml(res, 200, authLayout({
@@ -183,8 +163,10 @@ function registerRoutes(router) {
     const b = await parseBody(req);
     const category = b.category || 'other';
     const whatsapp = (b.whatsapp || '').trim();
-    db.prepare('UPDATE merchants SET category = ?, whatsapp = ?, onboarded = 1 WHERE id = ?')
-      .run(category, whatsapp, req.merchant.id);
+    await exec(
+      'UPDATE merchants SET category = $1, whatsapp = $2, onboarded = 1 WHERE id = $3',
+      [category, whatsapp, req.merchant.id]
+    );
     redirect(res, '/dashboard');
   });
 }

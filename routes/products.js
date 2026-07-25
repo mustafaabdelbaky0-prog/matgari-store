@@ -1,4 +1,4 @@
-const db = require('../lib/db');
+const { query, queryOne, exec } = require('../lib/db');
 const { dashboardPage, esc, money, suggestedMargin } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
@@ -61,9 +61,9 @@ function productForm({ id, product, cardTitle, submitLabel, actionUrl, defaultMa
 }
 
 function registerRoutes(router) {
-  router.get('/dashboard/products', (req, res) => {
+  router.get('/dashboard/products', async (req, res) => {
     const m = req.merchant;
-    const products = db.prepare('SELECT * FROM products WHERE merchant_id = ? ORDER BY id DESC').all(m.id);
+    const products = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);
 
     const body = `
       <details id="add" class="card">
@@ -111,10 +111,10 @@ function registerRoutes(router) {
     const qty = parseInt(b.quantity, 10) || 0;
     if (!name) return redirect(res, '/dashboard/products');
 
-    db.prepare(`
+    await exec(`
       INSERT INTO products (merchant_id, name, description, cost_price, sell_price, quantity, image, visible)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(m.id, name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0);
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [m.id, name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0]);
 
     redirect(res, '/dashboard/products');
   });
@@ -122,7 +122,7 @@ function registerRoutes(router) {
   router.post('/dashboard/products/:id/edit', async (req, res, params) => {
     const m = req.merchant;
     const b = await parseBody(req);
-    const product = db.prepare('SELECT * FROM products WHERE id = ? AND merchant_id = ?').get(params.id, m.id);
+    const product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [params.id, m.id]);
     if (!product) return redirect(res, '/dashboard/products');
 
     const name = (b.name || '').trim() || product.name;
@@ -130,17 +130,17 @@ function registerRoutes(router) {
     const sell = parseFloat(b.sell_price) || 0;
     const qty = b.quantity !== undefined ? parseInt(b.quantity, 10) || 0 : product.quantity;
 
-    db.prepare(`
-      UPDATE products SET name=?, description=?, cost_price=?, sell_price=?, quantity=?, image=?, visible=?
-      WHERE id = ? AND merchant_id = ?
-    `).run(name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0, params.id, m.id);
+    await exec(`
+      UPDATE products SET name=$1, description=$2, cost_price=$3, sell_price=$4, quantity=$5, image=$6, visible=$7
+      WHERE id = $8 AND merchant_id = $9
+    `, [name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0, params.id, m.id]);
 
     redirect(res, '/dashboard/products');
   });
 
   router.post('/dashboard/products/:id/delete', async (req, res, params) => {
     const m = req.merchant;
-    db.prepare('DELETE FROM products WHERE id = ? AND merchant_id = ?').run(params.id, m.id);
+    await exec('DELETE FROM products WHERE id = $1 AND merchant_id = $2', [params.id, m.id]);
     redirect(res, '/dashboard/products');
   });
 }

@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
     if (pathname !== '/' && serveStatic(req, res, pathname)) return;
 
     const cookies = parseCookies(req);
-    const merchant = getMerchantFromToken(cookies.session);
+    const merchant = await getMerchantFromToken(cookies.session);
     req.merchant = merchant;
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));

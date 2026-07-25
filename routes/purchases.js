@@ -1,13 +1,13 @@
-const db = require('../lib/db');
+const { query, queryOne, exec } = require('../lib/db');
 const { dashboardPage, esc, money, suggestedMargin } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
-  router.get('/dashboard/purchases', (req, res) => {
+  router.get('/dashboard/purchases', async (req, res) => {
     const m = req.merchant;
-    const products = db.prepare('SELECT * FROM products WHERE merchant_id = ? ORDER BY name').all(m.id);
-    const purchases = db.prepare("SELECT * FROM transactions WHERE merchant_id = ? AND type='purchase' ORDER BY id DESC LIMIT 40").all(m.id);
+    const products = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY name', [m.id]);
+    const purchases = await query("SELECT * FROM transactions WHERE merchant_id = $1 AND type='purchase' ORDER BY id DESC LIMIT 40", [m.id]);
 
     const body = `
       <details id="add" class="card">
@@ -64,9 +64,9 @@ function registerRoutes(router) {
     let product;
 
     if (b.product_id) {
-      product = db.prepare('SELECT * FROM products WHERE id = ? AND merchant_id = ?').get(b.product_id, m.id);
+      product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [b.product_id, m.id]);
       if (product) {
-        db.prepare('UPDATE products SET quantity = quantity + ?, cost_price = ? WHERE id = ?').run(qty, cost, product.id);
+        await exec('UPDATE products SET quantity = quantity + $1, cost_price = $2 WHERE id = $3', [qty, cost, product.id]);
       }
     }
 
@@ -75,17 +75,17 @@ function registerRoutes(router) {
       if (!name) return redirect(res, '/dashboard/purchases');
       const margin = suggestedMargin(m.category);
       const sell = b.sell_price && parseFloat(b.sell_price) > 0 ? parseFloat(b.sell_price) : Math.round(cost * (1 + margin / 100) * 100) / 100;
-      const info = db.prepare(`
+      const inserted = await queryOne(`
         INSERT INTO products (merchant_id, name, cost_price, sell_price, quantity, visible)
-        VALUES (?, ?, ?, ?, ?, 1)
-      `).run(m.id, name, cost, sell, qty);
-      product = { id: info.lastInsertRowid, name };
+        VALUES ($1, $2, $3, $4, $5, 1) RETURNING id
+      `, [m.id, name, cost, sell, qty]);
+      product = { id: inserted.id, name };
     }
 
-    db.prepare(`
+    await exec(`
       INSERT INTO transactions (merchant_id, type, product_id, product_name, quantity, amount)
-      VALUES (?, 'purchase', ?, ?, ?, ?)
-    `).run(m.id, product.id, product.name, qty, cost * qty);
+      VALUES ($1, 'purchase', $2, $3, $4, $5)
+    `, [m.id, product.id, product.name, qty, cost * qty]);
 
     redirect(res, '/dashboard/purchases');
   });

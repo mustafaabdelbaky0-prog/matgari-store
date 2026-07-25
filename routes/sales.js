@@ -1,17 +1,17 @@
-const db = require('../lib/db');
+const { query, queryOne, exec } = require('../lib/db');
 const { dashboardPage, esc, money } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
-  router.get('/dashboard/sales', (req, res) => {
+  router.get('/dashboard/sales', async (req, res) => {
     const m = req.merchant;
-    const products = db.prepare('SELECT * FROM products WHERE merchant_id = ? AND quantity > 0 ORDER BY name').all(m.id);
-    const sales = db.prepare("SELECT * FROM transactions WHERE merchant_id = ? AND type='sale' ORDER BY id DESC LIMIT 40").all(m.id);
-    const todayRow = db.prepare(`
+    const products = await query('SELECT * FROM products WHERE merchant_id = $1 AND quantity > 0 ORDER BY name', [m.id]);
+    const sales = await query("SELECT * FROM transactions WHERE merchant_id = $1 AND type='sale' ORDER BY id DESC LIMIT 40", [m.id]);
+    const todayRow = await queryOne(`
       SELECT COALESCE(SUM(amount),0) AS total, COUNT(*) AS cnt
-      FROM transactions WHERE merchant_id = ? AND type='sale' AND date(created_at) = date('now')
-    `).get(m.id);
+      FROM transactions WHERE merchant_id = $1 AND type='sale' AND created_at::date = CURRENT_DATE
+    `, [m.id]);
 
     const body = `
       <div class="grid-2">
@@ -62,18 +62,18 @@ function registerRoutes(router) {
   router.post('/dashboard/sales/add', async (req, res) => {
     const m = req.merchant;
     const b = await parseBody(req);
-    const product = db.prepare('SELECT * FROM products WHERE id = ? AND merchant_id = ?').get(b.product_id, m.id);
+    const product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [b.product_id, m.id]);
     if (!product) return redirect(res, '/dashboard/sales');
 
     const qty = Math.max(1, parseInt(b.quantity, 10) || 1);
     const sellQty = Math.min(qty, product.quantity);
     const amount = b.amount && parseFloat(b.amount) > 0 ? parseFloat(b.amount) : product.sell_price * sellQty;
 
-    db.prepare('UPDATE products SET quantity = quantity - ? WHERE id = ?').run(sellQty, product.id);
-    db.prepare(`
+    await exec('UPDATE products SET quantity = quantity - $1 WHERE id = $2', [sellQty, product.id]);
+    await exec(`
       INSERT INTO transactions (merchant_id, type, product_id, product_name, quantity, amount, note)
-      VALUES (?, 'sale', ?, ?, ?, ?, ?)
-    `).run(m.id, product.id, product.name, sellQty, amount, (b.note || '').trim());
+      VALUES ($1, 'sale', $2, $3, $4, $5, $6)
+    `, [m.id, product.id, product.name, sellQty, amount, (b.note || '').trim()]);
 
     redirect(res, '/dashboard/sales');
   });
