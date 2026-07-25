@@ -53,6 +53,7 @@ module.exports = async (req, res) => {
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
     req.merchant = merchant;
+    req._sentinel = 'SENTINEL_MERCHANT_IS_' + (merchant === null ? 'NULL' : 'TRUTHY');
 
     // Diagnostic
     if (pathname === '/health-check-abc123') {

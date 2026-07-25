@@ -159,6 +159,7 @@ function registerRoutes(router) {
       reqMerchantType: typeof req.merchant,
       reqMerchantJSON: JSON.stringify(req.merchant),
       reqOwnKeys: Object.getOwnPropertyNames(req).filter(k => k.length < 30).slice(0, 40),
+      sentinel: req._sentinel,
     };
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(info));
