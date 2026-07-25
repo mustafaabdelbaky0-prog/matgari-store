@@ -54,8 +54,8 @@ module.exports = async (req, res) => {
     const merchant = await getMerchantFromToken(cookies.session);
     req.merchant = merchant;
 
-    // Diagnostic: /_diag returns cookie + merchant state for debugging
-    if (pathname === '/_diag') {
+    // Diagnostic
+    if (pathname === '/health-check-abc123') {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.end(JSON.stringify({
         cookieHeader: req.headers.cookie || null,
