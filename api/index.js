@@ -54,6 +54,19 @@ module.exports = async (req, res) => {
     const merchant = await getMerchantFromToken(cookies.session);
     req.merchant = merchant;
 
+    // Diagnostic: /_diag returns cookie + merchant state for debugging
+    if (pathname === '/_diag') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.end(JSON.stringify({
+        cookieHeader: req.headers.cookie || null,
+        parsedCookieSession: cookies.session || null,
+        merchantIsNull: merchant === null,
+        merchantType: typeof merchant,
+        merchantKeys: merchant && typeof merchant === 'object' ? Object.keys(merchant).slice(0, 20) : null,
+      }));
+      return;
+    }
+
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');
     if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && !merchant.onboarded) {
