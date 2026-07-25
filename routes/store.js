@@ -1,6 +1,7 @@
 const db = require('../lib/db');
 const { page, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
+const { renderKidsLanding } = require('../lib/kids-landing');
 
 function registerRoutes(router) {
   router.get('/store/:slug', (req, res, params) => {
@@ -13,6 +14,15 @@ function registerRoutes(router) {
     }
 
     const products = db.prepare('SELECT * FROM products WHERE merchant_id = ? AND visible = 1 ORDER BY id DESC').all(merchant.id);
+
+    // Kids-clothes merchants get the dedicated landing page (Laila-style).
+    if (merchant.category === 'kids') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderKidsLanding(merchant, products));
+      return;
+    }
+
+    // Fallback: original simple landing for other categories.
     const wa = (merchant.whatsapp || '').replace(/[^0-9]/g, '');
     const waNumber = wa ? (wa.startsWith('20') ? wa : wa.startsWith('0') ? `2${wa}` : `20${wa}`) : '';
 
