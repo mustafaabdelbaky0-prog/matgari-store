@@ -138,14 +138,25 @@ function registerRoutes(router) {
   });
 
   router.get('/whatisreq', async (req, res) => {
+    const { getMerchantFromToken, parseCookies } = require('../lib/auth');
+    const { queryOne } = require('../lib/db');
+    const cookies = parseCookies(req);
+    const merchant = await getMerchantFromToken(cookies.session);
+    const rawSelect = await queryOne('SELECT 1 AS one');
     const info = {
       url: req.url,
       method: req.method,
       cookieHeader: req.headers.cookie || null,
-      merchantTruthy: !!req.merchant,
-      merchantType: typeof req.merchant,
-      merchantIsNull: req.merchant === null,
-      merchantSample: req.merchant && typeof req.merchant === 'object' ? Object.keys(req.merchant).slice(0, 10) : null,
+      cookieSession: cookies.session || null,
+      merchantFromToken: merchant,
+      merchantFromTokenType: typeof merchant,
+      merchantFromTokenIsArray: Array.isArray(merchant),
+      merchantFromTokenIsNull: merchant === null,
+      rawSelect,
+      rawSelectType: typeof rawSelect,
+      rawSelectIsArray: Array.isArray(rawSelect),
+      reqMerchant: req.merchant,
+      reqMerchantType: typeof req.merchant,
     };
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify(info));
