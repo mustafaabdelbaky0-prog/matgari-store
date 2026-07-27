@@ -5,7 +5,7 @@ const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
-  router.get('/dashboard/settings', (req, res) => {
+  router.get('/dashboard/settings', async (req, res) => {
     const m = await getRequestMerchant(req);
     const storeUrl = `${req.headers.host}/store/${m.slug}`;
 

@@ -167,8 +167,9 @@ function registerRoutes(router) {
     res.end();
   });
 
-  router.get('/onboarding', (req, res) => {
-    if (!await getRequestMerchant(req)) return redirect(res, '/login');
+  router.get('/onboarding', async (req, res) => {
+    const merchant = await getRequestMerchant(req);
+    if (!merchant) return redirect(res, '/login');
     sendHtml(res, 200, authLayout({
       title: 'متجرك بيبيع إيه؟',
       subtitle: 'اختار المجال عشان نظبطلك صفحة البيع والمخزون صح',
