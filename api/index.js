@@ -53,20 +53,6 @@ module.exports = async (req, res) => {
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
     req.merchant = merchant;
-    req._sentinel = 'SENTINEL_MERCHANT_IS_' + (merchant === null ? 'NULL' : 'TRUTHY');
-
-    // Diagnostic
-    if (pathname === '/health-check-abc123') {
-      res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.end(JSON.stringify({
-        cookieHeader: req.headers.cookie || null,
-        parsedCookieSession: cookies.session || null,
-        merchantIsNull: merchant === null,
-        merchantType: typeof merchant,
-        merchantKeys: merchant && typeof merchant === 'object' ? Object.keys(merchant).slice(0, 20) : null,
-      }));
-      return;
-    }
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');
@@ -100,4 +86,3 @@ module.exports = async (req, res) => {
     }
   }
 };
-// cache-bust 1784992092
