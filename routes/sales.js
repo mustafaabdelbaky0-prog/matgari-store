@@ -6,7 +6,7 @@ const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/sales', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const products = await query('SELECT * FROM products WHERE merchant_id = $1 AND quantity > 0 ORDER BY name', [m.id]);
     const sales = await query("SELECT * FROM transactions WHERE merchant_id = $1 AND type='sale' ORDER BY id DESC LIMIT 40", [m.id]);
     const todayRow = await queryOne(`
@@ -61,7 +61,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/sales/add', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const b = await parseBody(req);
     const product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [b.product_id, m.id]);
     if (!product) return redirect(res, '/dashboard/sales');

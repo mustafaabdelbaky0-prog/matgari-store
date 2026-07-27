@@ -63,7 +63,7 @@ function productForm({ id, product, cardTitle, submitLabel, actionUrl, defaultMa
 
 function registerRoutes(router) {
   router.get('/dashboard/products', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const products = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);
 
     const body = `
@@ -104,7 +104,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/products/add', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const b = await parseBody(req);
     const name = (b.name || '').trim();
     const cost = parseFloat(b.cost_price) || 0;
@@ -121,7 +121,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/products/:id/edit', async (req, res, params) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const b = await parseBody(req);
     const product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [params.id, m.id]);
     if (!product) return redirect(res, '/dashboard/products');
@@ -140,7 +140,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/products/:id/delete', async (req, res, params) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     await exec('DELETE FROM products WHERE id = $1 AND merchant_id = $2', [params.id, m.id]);
     redirect(res, '/dashboard/products');
   });

@@ -6,7 +6,7 @@ const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/settings', (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const storeUrl = `${req.headers.host}/store/${m.slug}`;
 
     const body = `
@@ -56,7 +56,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/settings', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const b = await parseBody(req);
     const storeName = (b.store_name || '').trim() || m.store_name;
     const category = b.category || m.category;

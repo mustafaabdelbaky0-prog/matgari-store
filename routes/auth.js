@@ -144,7 +144,7 @@ function registerRoutes(router) {
     const alsTestModule = require('../lib/req-context');
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
-    const fromCtx = getRequestMerchant(req);
+    const fromCtx = await getRequestMerchant(req);
     // Independent ALS test — set + get within same async fn.
     const testAls = new AsyncLocalStorage();
     let alsWorks = 'unknown';
@@ -175,7 +175,7 @@ function registerRoutes(router) {
   });
 
   router.get('/onboarding', (req, res) => {
-    if (!getRequestMerchant(req)) return redirect(res, '/login');
+    if (!await getRequestMerchant(req)) return redirect(res, '/login');
     sendHtml(res, 200, authLayout({
       title: 'متجرك بيبيع إيه؟',
       subtitle: 'اختار المجال عشان نظبطلك صفحة البيع والمخزون صح',
@@ -202,13 +202,14 @@ function registerRoutes(router) {
   });
 
   router.post('/onboarding', async (req, res) => {
-    if (!getRequestMerchant(req)) return redirect(res, '/login');
+    const merchant = await getRequestMerchant(req);
+    if (!merchant) return redirect(res, '/login');
     const b = await parseBody(req);
     const category = b.category || 'other';
     const whatsapp = (b.whatsapp || '').trim();
     await exec(
       'UPDATE merchants SET category = $1, whatsapp = $2, onboarded = 1 WHERE id = $3',
-      [category, whatsapp, getRequestMerchant(req).id]
+      [category, whatsapp, merchant.id]
     );
     redirect(res, '/dashboard');
   });

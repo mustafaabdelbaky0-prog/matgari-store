@@ -6,7 +6,7 @@ const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/cash', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const totals = await queryOne(`
       SELECT
         COALESCE(SUM(CASE WHEN type IN ('sale','income') THEN amount ELSE 0 END),0) AS income,
@@ -75,7 +75,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/cash/add', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
     const b = await parseBody(req);
     const type = b.type === 'income' ? 'income' : 'expense';
     const amount = parseFloat(b.amount) || 0;

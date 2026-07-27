@@ -5,7 +5,7 @@ const { sendHtml } = require('../lib/http-helpers');
 
 function registerRoutes(router) {
   router.get('/dashboard', async (req, res) => {
-    const m = getRequestMerchant(req);
+    const m = await getRequestMerchant(req);
 
     const balanceRow = await queryOne(`
       SELECT
