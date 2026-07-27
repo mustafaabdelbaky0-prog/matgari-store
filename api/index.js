@@ -53,6 +53,7 @@ async function handle(req, res) {
   const cookies = parseCookies(req);
   const merchant = await getMerchantFromToken(cookies.session);
   setRequestMerchant(req, merchant);
+  console.log('[MW]', pathname, 'merchant?', merchant ? `id=${merchant.id} onboarded=${JSON.stringify(merchant.onboarded)} type=${typeof merchant.onboarded}` : 'null');
 
   const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
   if (needsAuth && !merchant) return redirect(res, '/login');
