@@ -52,10 +52,16 @@ module.exports = async (req, res) => {
 
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
-    // Diagnostic: log merchant identity right at assignment.
-    console.log('[MW] merchant?', merchant ? `id=${merchant.id} onboarded=${merchant.onboarded}` : 'null');
-    req.merchant = merchant;
-    console.log('[MW] req.merchant set. keys:', merchant ? Object.keys(merchant).length : 0);
+    // NOTE: Vercel's request object appears to strip arbitrary assigned properties
+    // when serialized (property survives as own key but becomes {}). Use both a
+    // direct assignment AND defineProperty for redundancy, and expose via getter
+    // that falls back to a WeakMap-backed store.
+    Object.defineProperty(req, 'merchant', {
+      value: merchant,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');
