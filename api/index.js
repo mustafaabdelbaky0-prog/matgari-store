@@ -53,12 +53,10 @@ module.exports = async (req, res) => {
 
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
-    // Vercel's request wrapper drops arbitrary own properties, so stash the
-    // merchant in a WeakMap keyed by req and expose via a helper.
+    console.log('[MW]', pathname, 'merchant?', merchant ? merchant.id : 'null');
     setRequestMerchant(req, merchant);
-    // Also try direct assignment as a best-effort fallback for local dev/tests
-    // where nothing strips it.
     req.merchant = merchant;
+    req._sentinel = 'mw-set-' + (merchant ? merchant.id : 'null');
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');

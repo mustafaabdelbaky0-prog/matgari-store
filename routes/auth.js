@@ -140,30 +140,15 @@ function registerRoutes(router) {
 
   router.get('/whatisreq', async (req, res) => {
     const { getMerchantFromToken, parseCookies } = require('../lib/auth');
-    const { queryOne } = require('../lib/db');
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
-    const rawSelect = await queryOne('SELECT 1 AS one');
-    const info = {
-      url: req.url,
-      method: req.method,
-      cookieHeader: req.headers.cookie || null,
-      cookieSession: cookies.session || null,
-      merchantFromToken: merchant,
-      merchantFromTokenType: typeof merchant,
-      merchantFromTokenIsArray: Array.isArray(merchant),
-      merchantFromTokenIsNull: merchant === null,
-      rawSelect,
-      rawSelectType: typeof rawSelect,
-      rawSelectIsArray: Array.isArray(rawSelect),
-      reqMerchant: getRequestMerchant(req),
-      reqMerchantType: typeof getRequestMerchant(req),
-      reqMerchantJSON: JSON.stringify(getRequestMerchant(req)),
-      reqOwnKeys: Object.getOwnPropertyNames(req).filter(k => k.length < 30).slice(0, 40),
-      sentinel: req._sentinel,
-    };
+    const fromCtx = getRequestMerchant(req);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.end(JSON.stringify(info));
+    res.end(JSON.stringify({
+      handlerMerchant: merchant ? { id: merchant.id, onboarded: merchant.onboarded } : null,
+      middlewareMerchant: fromCtx ? { id: fromCtx.id, onboarded: fromCtx.onboarded } : null,
+      reqSameObject: req._sentinel || 'no-sentinel',
+    }));
   });
 
   router.get('/logout', async (req, res) => {
