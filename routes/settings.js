@@ -1,11 +1,12 @@
 const { exec } = require('../lib/db');
+const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, CATEGORIES } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/settings', (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const storeUrl = `${req.headers.host}/store/${m.slug}`;
 
     const body = `
@@ -55,7 +56,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/settings', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const b = await parseBody(req);
     const storeName = (b.store_name || '').trim() || m.store_name;
     const category = b.category || m.category;

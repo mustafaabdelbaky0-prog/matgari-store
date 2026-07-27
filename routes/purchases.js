@@ -1,11 +1,12 @@
 const { query, queryOne, exec } = require('../lib/db');
+const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money, suggestedMargin } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/purchases', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const products = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY name', [m.id]);
     const purchases = await query("SELECT * FROM transactions WHERE merchant_id = $1 AND type='purchase' ORDER BY id DESC LIMIT 40", [m.id]);
 
@@ -57,7 +58,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/purchases/add', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const b = await parseBody(req);
     const qty = Math.max(1, parseInt(b.quantity, 10) || 1);
     const cost = parseFloat(b.cost_price) || 0;

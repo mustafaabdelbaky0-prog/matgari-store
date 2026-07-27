@@ -1,11 +1,12 @@
 const { query, queryOne, exec } = require('../lib/db');
+const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 
 function registerRoutes(router) {
   router.get('/dashboard/cash', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const totals = await queryOne(`
       SELECT
         COALESCE(SUM(CASE WHEN type IN ('sale','income') THEN amount ELSE 0 END),0) AS income,
@@ -74,7 +75,7 @@ function registerRoutes(router) {
   });
 
   router.post('/dashboard/cash/add', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
     const b = await parseBody(req);
     const type = b.type === 'income' ? 'income' : 'expense';
     const amount = parseFloat(b.amount) || 0;

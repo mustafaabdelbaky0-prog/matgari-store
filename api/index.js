@@ -5,6 +5,7 @@ const { URL } = require('url');
 const Router = require('../lib/router');
 const { getMerchantFromToken, parseCookies } = require('../lib/auth');
 const { redirect } = require('../lib/http-helpers');
+const { setRequestMerchant } = require('../lib/req-context');
 
 const router = new Router();
 require('../routes/auth').registerRoutes(router);
@@ -52,16 +53,12 @@ module.exports = async (req, res) => {
 
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
-    // NOTE: Vercel's request object appears to strip arbitrary assigned properties
-    // when serialized (property survives as own key but becomes {}). Use both a
-    // direct assignment AND defineProperty for redundancy, and expose via getter
-    // that falls back to a WeakMap-backed store.
-    Object.defineProperty(req, 'merchant', {
-      value: merchant,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+    // Vercel's request wrapper drops arbitrary own properties, so stash the
+    // merchant in a WeakMap keyed by req and expose via a helper.
+    setRequestMerchant(req, merchant);
+    // Also try direct assignment as a best-effort fallback for local dev/tests
+    // where nothing strips it.
+    req.merchant = merchant;
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');

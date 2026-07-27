@@ -1,4 +1,5 @@
 const { queryOne, exec } = require('../lib/db');
+const { getRequestMerchant } = require('../lib/req-context');
 const { hashPassword, verifyPassword, createSession, destroySession, uniqueSlug, setCookie, parseCookies } = require('../lib/auth');
 const { page, esc, CATEGORIES } = require('../lib/view');
 const { parseBody } = require('../lib/body');
@@ -155,9 +156,9 @@ function registerRoutes(router) {
       rawSelect,
       rawSelectType: typeof rawSelect,
       rawSelectIsArray: Array.isArray(rawSelect),
-      reqMerchant: req.merchant,
-      reqMerchantType: typeof req.merchant,
-      reqMerchantJSON: JSON.stringify(req.merchant),
+      reqMerchant: getRequestMerchant(req),
+      reqMerchantType: typeof getRequestMerchant(req),
+      reqMerchantJSON: JSON.stringify(getRequestMerchant(req)),
       reqOwnKeys: Object.getOwnPropertyNames(req).filter(k => k.length < 30).slice(0, 40),
       sentinel: req._sentinel,
     };
@@ -179,7 +180,7 @@ function registerRoutes(router) {
   });
 
   router.get('/onboarding', (req, res) => {
-    if (!req.merchant) return redirect(res, '/login');
+    if (!getRequestMerchant(req)) return redirect(res, '/login');
     sendHtml(res, 200, authLayout({
       title: 'متجرك بيبيع إيه؟',
       subtitle: 'اختار المجال عشان نظبطلك صفحة البيع والمخزون صح',
@@ -206,13 +207,13 @@ function registerRoutes(router) {
   });
 
   router.post('/onboarding', async (req, res) => {
-    if (!req.merchant) return redirect(res, '/login');
+    if (!getRequestMerchant(req)) return redirect(res, '/login');
     const b = await parseBody(req);
     const category = b.category || 'other';
     const whatsapp = (b.whatsapp || '').trim();
     await exec(
       'UPDATE merchants SET category = $1, whatsapp = $2, onboarded = 1 WHERE id = $3',
-      [category, whatsapp, req.merchant.id]
+      [category, whatsapp, getRequestMerchant(req).id]
     );
     redirect(res, '/dashboard');
   });

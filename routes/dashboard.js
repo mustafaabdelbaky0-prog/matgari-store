@@ -1,10 +1,11 @@
 const { queryOne, query } = require('../lib/db');
+const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
 
 function registerRoutes(router) {
   router.get('/dashboard', async (req, res) => {
-    const m = req.merchant;
+    const m = getRequestMerchant(req);
 
     const balanceRow = await queryOne(`
       SELECT
