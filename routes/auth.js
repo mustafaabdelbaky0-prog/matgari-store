@@ -140,24 +140,17 @@ function registerRoutes(router) {
 
   router.get('/whatisreq', async (req, res) => {
     const { getMerchantFromToken, parseCookies } = require('../lib/auth');
-    const { AsyncLocalStorage } = require('async_hooks');
-    const alsTestModule = require('../lib/req-context');
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
     const fromCtx = await getRequestMerchant(req);
-    // Independent ALS test — set + get within same async fn.
-    const testAls = new AsyncLocalStorage();
-    let alsWorks = 'unknown';
-    await testAls.run({ x: 42 }, async () => {
-      const s = testAls.getStore();
-      alsWorks = s ? 'YES:' + s.x : 'NO:store-undefined';
-    });
+    // Also try direct req header access
+    const rawCookie = req.headers.cookie || null;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.end(JSON.stringify({
       handlerMerchant: merchant ? { id: merchant.id, onboarded: merchant.onboarded } : null,
-      middlewareMerchant: fromCtx ? { id: fromCtx.id, onboarded: fromCtx.onboarded } : null,
-      alsWorks,
-      alsModuleType: typeof alsTestModule.runWithContext,
+      fromCtxMerchant: fromCtx ? { id: fromCtx.id, onboarded: fromCtx.onboarded } : null,
+      cookieViaAuthLib: cookies.session ? cookies.session.slice(0, 12) + '...' : null,
+      rawCookieHeader: rawCookie ? rawCookie.slice(0, 30) + '...' : null,
     }));
   });
 
