@@ -52,7 +52,10 @@ module.exports = async (req, res) => {
 
     const cookies = parseCookies(req);
     const merchant = await getMerchantFromToken(cookies.session);
+    // Diagnostic: log merchant identity right at assignment.
+    console.log('[MW] merchant?', merchant ? `id=${merchant.id} onboarded=${merchant.onboarded}` : 'null');
     req.merchant = merchant;
+    console.log('[MW] req.merchant set. keys:', merchant ? Object.keys(merchant).length : 0);
 
     const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
     if (needsAuth && !merchant) return redirect(res, '/login');
