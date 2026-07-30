@@ -60,21 +60,21 @@ async function handle(req, res) {
     : 'null');
 
   const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (needsAuth && !merchant) return redirect(res, '/mw-login');
+  if (needsAuth && !merchant) return redirect(res, '/L63?p=' + pathname);
   const ob = merchant ? Number(merchant.onboarded) : 0;
   if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && ob !== 1) {
-    return redirect(res, '/mw-onboarding');
+    return redirect(res, '/L66?p=' + pathname + '&ob=' + ob);
   }
   if (pathname === '/onboarding' && merchant && ob === 1 && req.method === 'GET') {
-    return redirect(res, '/mw-dashboard');
+    return redirect(res, '/L69?p=' + pathname);
   }
 
   if (pathname === '/') {
-    if (merchant) return redirect(res, merchant.onboarded ? '/dashboard' : '/onboarding');
-    return redirect(res, '/login');
+    if (merchant) return redirect(res, '/L73?ob=' + merchant.onboarded);
+    return redirect(res, '/L74');
   }
   if ((pathname === '/login' || pathname === '/register') && merchant && req.method === 'GET') {
-    return redirect(res, merchant.onboarded ? '/dashboard' : '/onboarding');
+    return redirect(res, '/L77?ob=' + merchant.onboarded);
   }
 
   const match = router.match(req.method, pathname);
