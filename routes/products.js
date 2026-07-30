@@ -3,9 +3,11 @@ const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money, suggestedMargin } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
+const { renderAttributeFields, extractAttributes } = require('../lib/product-form');
 
-function productForm({ id, product, cardTitle, submitLabel, actionUrl, defaultMargin }) {
+function productForm({ product, submitLabel, actionUrl, defaultMargin, category }) {
   const p = product || {};
+  const attrs = p.attributes || {};
   return `
   <form method="POST" action="${actionUrl}" data-price-suggest enctype="application/x-www-form-urlencoded">
     <div class="field">
@@ -50,6 +52,8 @@ function productForm({ id, product, cardTitle, submitLabel, actionUrl, defaultMa
       <textarea name="description" placeholder="مقاسات، خامة، ألوان متاحة...">${esc(p.description || '')}</textarea>
     </div>
 
+    ${renderAttributeFields(category, attrs)}
+
     <div class="field">
       <label style="display:flex;align-items:center;gap:8px;font-weight:600;">
         <input type="checkbox" name="visible" value="1" style="width:auto;" ${p.visible === undefined || p.visible ? 'checked' : ''}>
@@ -61,16 +65,27 @@ function productForm({ id, product, cardTitle, submitLabel, actionUrl, defaultMa
   </form>`;
 }
 
+// Normalize the DB `attributes` column into a JS object regardless of driver
+// (some Neon returns come as strings, some as objects).
+function coerceAttrs(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch (e) { return {}; }
+  }
+  return raw;
+}
+
 function registerRoutes(router) {
   router.get('/dashboard/products', async (req, res) => {
     const m = await getRequestMerchant(req);
-    const products = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);
+    const rows = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);
+    const products = rows.map((r) => ({ ...r, attributes: coerceAttrs(r.attributes) }));
 
     const body = `
       <details id="add" class="card">
         <summary style="cursor:pointer;font-weight:800;font-size:15px;">➕ إضافة منتج جديد</summary>
         <div class="mt-16">
-          ${productForm({ actionUrl: '/dashboard/products/add', submitLabel: 'إضافة المنتج للمخزون', defaultMargin: suggestedMargin(m.category) })}
+          ${productForm({ actionUrl: '/dashboard/products/add', submitLabel: 'إضافة المنتج للمخزون', defaultMargin: suggestedMargin(m.category), category: m.category })}
         </div>
       </details>
 
@@ -91,7 +106,7 @@ function registerRoutes(router) {
             ${!p.visible ? '<span class="chip chip-warning">مخفي</span>' : (p.quantity <= 3 ? '<span class="chip chip-danger">قليل</span>' : '<span class="chip chip-success">متاح</span>')}
           </summary>
           <div class="mt-16">
-            ${productForm({ product: p, actionUrl: `/dashboard/products/${p.id}/edit`, submitLabel: 'حفظ التعديلات', defaultMargin: suggestedMargin(m.category) })}
+            ${productForm({ product: p, actionUrl: `/dashboard/products/${p.id}/edit`, submitLabel: 'حفظ التعديلات', defaultMargin: suggestedMargin(m.category), category: m.category })}
             <form method="POST" action="/dashboard/products/${p.id}/delete" data-confirm="متأكد إنك عايز تمسح المنتج ده؟" style="margin-top:10px;">
               <button class="btn btn-danger" type="submit">🗑️ حذف المنتج</button>
             </form>
@@ -112,10 +127,12 @@ function registerRoutes(router) {
     const qty = parseInt(b.quantity, 10) || 0;
     if (!name) return redirect(res, '/dashboard/products');
 
+    const attributes = extractAttributes(m.category, b);
+
     await exec(`
-      INSERT INTO products (merchant_id, name, description, cost_price, sell_price, quantity, image, visible)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [m.id, name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0]);
+      INSERT INTO products (merchant_id, name, description, cost_price, sell_price, quantity, image, visible, attributes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+    `, [m.id, name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0, JSON.stringify(attributes)]);
 
     redirect(res, '/dashboard/products');
   });
@@ -130,11 +147,12 @@ function registerRoutes(router) {
     const cost = parseFloat(b.cost_price) || 0;
     const sell = parseFloat(b.sell_price) || 0;
     const qty = b.quantity !== undefined ? parseInt(b.quantity, 10) || 0 : product.quantity;
+    const attributes = extractAttributes(m.category, b);
 
     await exec(`
-      UPDATE products SET name=$1, description=$2, cost_price=$3, sell_price=$4, quantity=$5, image=$6, visible=$7
-      WHERE id = $8 AND merchant_id = $9
-    `, [name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0, params.id, m.id]);
+      UPDATE products SET name=$1, description=$2, cost_price=$3, sell_price=$4, quantity=$5, image=$6, visible=$7, attributes=$8::jsonb
+      WHERE id = $9 AND merchant_id = $10
+    `, [name, (b.description || '').trim(), cost, sell, qty, b.image || null, b.visible ? 1 : 0, JSON.stringify(attributes), params.id, m.id]);
 
     redirect(res, '/dashboard/products');
   });

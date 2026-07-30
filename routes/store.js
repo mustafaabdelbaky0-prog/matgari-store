@@ -2,6 +2,8 @@ const { query, queryOne } = require('../lib/db');
 const { page, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
 const { renderKidsLanding } = require('../lib/kids-landing');
+const { renderThemedLanding } = require('../lib/themed-landing');
+const { getCategoryConfig } = require('../lib/category-configs');
 
 function registerRoutes(router) {
   router.get('/store/:slug', async (req, res, params) => {
@@ -18,12 +20,21 @@ function registerRoutes(router) {
       [merchant.id]
     );
 
+    // Kids clothing keeps the dedicated Laila-style renderer.
     if (merchant.category === 'kids') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(renderKidsLanding(merchant, products));
       return;
     }
 
+    // Any other configured category uses the themed renderer.
+    if (getCategoryConfig(merchant.category)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(renderThemedLanding(merchant, products));
+      return;
+    }
+
+    // Fallback: minimal listing for categories without a config (e.g. "other").
     const wa = (merchant.whatsapp || '').replace(/[^0-9]/g, '');
     const waNumber = wa ? (wa.startsWith('20') ? wa : wa.startsWith('0') ? `2${wa}` : `20${wa}`) : '';
 
