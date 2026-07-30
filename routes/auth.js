@@ -146,11 +146,13 @@ function registerRoutes(router) {
     // Also try direct req header access
     const rawCookie = req.headers.cookie || null;
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('X-Handler-Marker', 'RAN-1');
     res.end(JSON.stringify({
       handlerMerchant: merchant ? { id: merchant.id, onboarded: merchant.onboarded } : null,
       fromCtxMerchant: fromCtx ? { id: fromCtx.id, onboarded: fromCtx.onboarded } : null,
       cookieViaAuthLib: cookies.session ? cookies.session.slice(0, 12) + '...' : null,
       rawCookieHeader: rawCookie ? rawCookie.slice(0, 30) + '...' : null,
+      DEPLOY_SIG: 'sig-1f7cf3f-plus',
     }));
   });
 
