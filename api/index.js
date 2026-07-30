@@ -53,14 +53,15 @@ async function handle(req, res) {
   const cookies = parseCookies(req);
   const merchant = await getMerchantFromToken(cookies.session);
   setRequestMerchant(req, merchant);
-  console.log('[MW]', pathname, 'merchant?', merchant ? `id=${merchant.id} onboarded=${JSON.stringify(merchant.onboarded)} type=${typeof merchant.onboarded}` : 'null');
+  const ob = merchant ? Number(merchant.onboarded) : 0;
+  console.log('[MW]', pathname, 'm?', merchant ? `id=${merchant.id} ob=${merchant.onboarded}(${typeof merchant.onboarded})→${ob}` : 'null');
 
   const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
   if (needsAuth && !merchant) return redirect(res, '/login');
-  if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && !merchant.onboarded) {
+  if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && ob !== 1) {
     return redirect(res, '/onboarding');
   }
-  if (pathname === '/onboarding' && merchant && merchant.onboarded && req.method === 'GET') {
+  if (pathname === '/onboarding' && merchant && ob === 1 && req.method === 'GET') {
     return redirect(res, '/dashboard');
   }
 
