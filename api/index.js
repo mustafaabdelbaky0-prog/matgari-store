@@ -53,16 +53,20 @@ async function handle(req, res) {
   const cookies = parseCookies(req);
   const merchant = await getMerchantFromToken(cookies.session);
   setRequestMerchant(req, merchant);
-  const ob = merchant ? Number(merchant.onboarded) : 0;
+
+  // Debug-only: reveal middleware execution by writing to a header on ALL responses.
+  res.setHeader('X-Mid-Debug', merchant
+    ? `id=${merchant.id};ob=${merchant.onboarded};t=${typeof merchant.onboarded}`
+    : 'null');
 
   const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (needsAuth && !merchant) return redirect(res, '/login');
+  if (needsAuth && !merchant) return redirect(res, '/mw-login');
+  const ob = merchant ? Number(merchant.onboarded) : 0;
   if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && ob !== 1) {
-    // Encode debug info in the Location so we can see WHY we redirected.
-    return redirect(res, `/onboarding?_dbg=mid=${merchant.id}_ob=${JSON.stringify(merchant.onboarded)}_t=${typeof merchant.onboarded}`);
+    return redirect(res, '/mw-onboarding');
   }
   if (pathname === '/onboarding' && merchant && ob === 1 && req.method === 'GET') {
-    return redirect(res, '/dashboard');
+    return redirect(res, '/mw-dashboard');
   }
 
   if (pathname === '/') {
