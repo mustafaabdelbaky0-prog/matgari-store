@@ -138,23 +138,6 @@ function registerRoutes(router) {
     res.end();
   });
 
-  router.get('/whatisreq', async (req, res) => {
-    const { getMerchantFromToken, parseCookies } = require('../lib/auth');
-    const cookies = parseCookies(req);
-    const merchant = await getMerchantFromToken(cookies.session);
-    const fromCtx = await getRequestMerchant(req);
-    // Also try direct req header access
-    const rawCookie = req.headers.cookie || null;
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('X-Handler-Marker', 'RAN-1');
-    res.end(JSON.stringify({
-      handlerMerchant: merchant ? { id: merchant.id, onboarded: merchant.onboarded } : null,
-      fromCtxMerchant: fromCtx ? { id: fromCtx.id, onboarded: fromCtx.onboarded } : null,
-      cookieViaAuthLib: cookies.session ? cookies.session.slice(0, 12) + '...' : null,
-      rawCookieHeader: rawCookie ? rawCookie.slice(0, 30) + '...' : null,
-      DEPLOY_SIG: 'sig-1f7cf3f-plus',
-    }));
-  });
 
   router.get('/logout', async (req, res) => {
     // Convenience GET so you can just visit /logout to end a session.

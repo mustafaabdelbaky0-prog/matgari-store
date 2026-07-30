@@ -53,28 +53,24 @@ async function handle(req, res) {
   const cookies = parseCookies(req);
   const merchant = await getMerchantFromToken(cookies.session);
   setRequestMerchant(req, merchant);
-
-  // Debug-only: reveal middleware execution by writing to a header on ALL responses.
-  res.setHeader('X-Mid-Debug', merchant
-    ? `id=${merchant.id};ob=${merchant.onboarded};t=${typeof merchant.onboarded}`
-    : 'null');
+  // Coerce Postgres INTEGER to Number so `=== 1` comparisons are reliable.
+  const ob = merchant ? Number(merchant.onboarded) : 0;
 
   const needsAuth = AUTH_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
-  if (needsAuth && !merchant) return redirect(res, '/L63?p=' + pathname);
-  const ob = merchant ? Number(merchant.onboarded) : 0;
+  if (needsAuth && !merchant) return redirect(res, '/login');
   if (pathname.startsWith(AUTH_ONLY_ONBOARDED_PREFIX) && merchant && ob !== 1) {
-    return redirect(res, '/L66?p=' + pathname + '&ob=' + ob);
+    return redirect(res, '/onboarding');
   }
   if (pathname === '/onboarding' && merchant && ob === 1 && req.method === 'GET') {
-    return redirect(res, '/L69?p=' + pathname);
+    return redirect(res, '/dashboard');
   }
 
   if (pathname === '/') {
-    if (merchant) return redirect(res, '/L73?ob=' + merchant.onboarded);
-    return redirect(res, '/L74');
+    if (merchant) return redirect(res, ob === 1 ? '/dashboard' : '/onboarding');
+    return redirect(res, '/login');
   }
   if ((pathname === '/login' || pathname === '/register') && merchant && req.method === 'GET') {
-    return redirect(res, '/L77?ob=' + merchant.onboarded);
+    return redirect(res, ob === 1 ? '/dashboard' : '/onboarding');
   }
 
   const match = router.match(req.method, pathname);
