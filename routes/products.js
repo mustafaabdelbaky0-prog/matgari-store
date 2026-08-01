@@ -5,15 +5,28 @@ const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 const { renderAttributeFields, extractAttributes } = require('../lib/product-form');
 
-function productForm({ product, submitLabel, actionUrl, defaultMargin, category }) {
+function productForm({ product, submitLabel, actionUrl, defaultMargin, category, merchantSections }) {
   const p = product || {};
   const attrs = p.attributes || {};
+  const currentSection = attrs._merchant_section || '';
+  const sections = merchantSections || [];
   return `
   <form method="POST" action="${actionUrl}" data-price-suggest enctype="application/x-www-form-urlencoded">
     <div class="field">
       <label>اسم المنتج</label>
       <input type="text" name="name" required value="${esc(p.name || '')}" placeholder="مثال: تيشيرت قطن">
     </div>
+
+    ${sections.length > 0 ? `
+    <div class="field">
+      <label>قسم المتجر</label>
+      <select name="merchant_section">
+        <option value="">— بدون قسم —</option>
+        ${sections.map((s) => `<option value="${esc(s)}" ${s === currentSection ? 'selected' : ''}>${esc(s)}</option>`).join('')}
+      </select>
+      <div class="hint">هيتصنف المنتج تحت القسم ده في صفحة البيع بتاعتك</div>
+    </div>
+    ` : ''}
 
     <div class="field">
       <label>صورة المنتج</label>
@@ -75,17 +88,25 @@ function coerceAttrs(raw) {
   return raw;
 }
 
+function coerceSections(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') { try { return JSON.parse(raw); } catch (e) { return []; } }
+  return [];
+}
+
 function registerRoutes(router) {
   router.get('/dashboard/products', async (req, res) => {
     const m = await getRequestMerchant(req);
     const rows = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);
     const products = rows.map((r) => ({ ...r, attributes: coerceAttrs(r.attributes) }));
+    const merchantSections = coerceSections(m.sections);
 
     const body = `
       <details id="add" class="card">
         <summary style="cursor:pointer;font-weight:800;font-size:15px;">➕ إضافة منتج جديد</summary>
         <div class="mt-16">
-          ${productForm({ actionUrl: '/dashboard/products/add', submitLabel: 'إضافة المنتج للمخزون', defaultMargin: suggestedMargin(m.category), category: m.category })}
+          ${productForm({ actionUrl: '/dashboard/products/add', submitLabel: 'إضافة المنتج للمخزون', defaultMargin: suggestedMargin(m.category), category: m.category, merchantSections })}
         </div>
       </details>
 
@@ -106,7 +127,7 @@ function registerRoutes(router) {
             ${!p.visible ? '<span class="chip chip-warning">مخفي</span>' : (p.quantity <= 3 ? '<span class="chip chip-danger">قليل</span>' : '<span class="chip chip-success">متاح</span>')}
           </summary>
           <div class="mt-16">
-            ${productForm({ product: p, actionUrl: `/dashboard/products/${p.id}/edit`, submitLabel: 'حفظ التعديلات', defaultMargin: suggestedMargin(m.category), category: m.category })}
+            ${productForm({ product: p, actionUrl: `/dashboard/products/${p.id}/edit`, submitLabel: 'حفظ التعديلات', defaultMargin: suggestedMargin(m.category), category: m.category, merchantSections })}
             <form method="POST" action="/dashboard/products/${p.id}/delete" data-confirm="متأكد إنك عايز تمسح المنتج ده؟" style="margin-top:10px;">
               <button class="btn btn-danger" type="submit">🗑️ حذف المنتج</button>
             </form>
@@ -128,6 +149,7 @@ function registerRoutes(router) {
     if (!name) return redirect(res, '/dashboard/products');
 
     const attributes = extractAttributes(m.category, b);
+    if (b.merchant_section) attributes._merchant_section = b.merchant_section.trim();
 
     await exec(`
       INSERT INTO products (merchant_id, name, description, cost_price, sell_price, quantity, image, visible, attributes)
@@ -148,6 +170,7 @@ function registerRoutes(router) {
     const sell = parseFloat(b.sell_price) || 0;
     const qty = b.quantity !== undefined ? parseInt(b.quantity, 10) || 0 : product.quantity;
     const attributes = extractAttributes(m.category, b);
+    if (b.merchant_section) attributes._merchant_section = b.merchant_section.trim();
 
     await exec(`
       UPDATE products SET name=$1, description=$2, cost_price=$3, sell_price=$4, quantity=$5, image=$6, visible=$7, attributes=$8::jsonb

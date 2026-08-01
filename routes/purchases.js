@@ -12,6 +12,13 @@ const {
   categoryStockLabel,
 } = require('../lib/variant-stock');
 
+function coerceSections(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string') { try { return JSON.parse(raw); } catch (e) { return []; } }
+  return [];
+}
+
 function registerRoutes(router) {
   router.get('/dashboard/purchases', async (req, res) => {
     const m = await getRequestMerchant(req);
@@ -19,6 +26,7 @@ function registerRoutes(router) {
     const purchases = await query("SELECT * FROM transactions WHERE merchant_id = $1 AND type='purchase' ORDER BY id DESC LIMIT 40", [m.id]);
     const key = stockKeyFor(m.category);
     const stockLabel = categoryStockLabel(m.category);
+    const merchantSections = coerceSections(m.sections);
 
     // Serialize each product's variant list + current stock for the front-end.
     const productsJs = products.map((p) => ({
@@ -45,6 +53,21 @@ function registerRoutes(router) {
               <label>اسم المنتج الجديد (لو مش موجود بالفوق)</label>
               <input type="text" name="new_product_name" placeholder="مثال: بنطلون جينز">
             </div>
+
+            ${merchantSections.length > 0 ? `
+            <div class="field">
+              <label>القسم في متجرك</label>
+              <select name="merchant_section">
+                <option value="">— بدون قسم —</option>
+                ${merchantSections.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+              </select>
+              <div class="hint">هيتصنف المنتج تحت القسم ده في اللاندج بيدج. تقدر تعدله بعدين من قسم "المخزون".</div>
+            </div>
+            ` : `
+            <div class="hint" style="margin:-4px 0 12px;font-size:12px;">
+              💡 تقدر تعمل أقسام مخصوصه لمتجرك من <a href="/dashboard/settings" style="color:var(--primary,#4f46e5);">الإعدادات</a> عشان تصنف منتجاتك.
+            </div>
+            `}
 
             <div id="variant-stock-block"></div>
 
@@ -140,6 +163,8 @@ function registerRoutes(router) {
     // If the user filled in per-variant counts, they override the total qty field.
     const qty = perVariantTotal > 0 ? perVariantTotal : Math.max(1, parseInt(b.quantity, 10) || 1);
 
+    const section = (b.merchant_section || '').trim();
+
     if (b.product_id) {
       product = await queryOne('SELECT * FROM products WHERE id = $1 AND merchant_id = $2', [b.product_id, m.id]);
       if (product) {
@@ -157,9 +182,15 @@ function registerRoutes(router) {
           ? totalFromStockMap(newStockMap)
           : (Number(product.quantity) || 0) + qty;
 
+        // Merge section into attributes if the user picked one.
+        let attrs = product.attributes;
+        if (typeof attrs === 'string') { try { attrs = JSON.parse(attrs); } catch (e) { attrs = {}; } }
+        attrs = attrs || {};
+        if (section) attrs._merchant_section = section;
+
         await exec(
-          'UPDATE products SET quantity = $1, cost_price = $2, variant_stock = $3::jsonb WHERE id = $4',
-          [newTotal, cost, JSON.stringify(newStockMap), product.id]
+          'UPDATE products SET quantity = $1, cost_price = $2, variant_stock = $3::jsonb, attributes = $4::jsonb WHERE id = $5',
+          [newTotal, cost, JSON.stringify(newStockMap), JSON.stringify(attrs), product.id]
         );
       }
     }
@@ -169,10 +200,11 @@ function registerRoutes(router) {
       if (!name) return redirect(res, '/dashboard/purchases');
       const margin = suggestedMargin(m.category);
       const sell = b.sell_price && parseFloat(b.sell_price) > 0 ? parseFloat(b.sell_price) : Math.round(cost * (1 + margin / 100) * 100) / 100;
+      const initialAttrs = section ? { _merchant_section: section } : {};
       const inserted = await queryOne(`
-        INSERT INTO products (merchant_id, name, cost_price, sell_price, quantity, visible)
-        VALUES ($1, $2, $3, $4, $5, 1) RETURNING id
-      `, [m.id, name, cost, sell, qty]);
+        INSERT INTO products (merchant_id, name, cost_price, sell_price, quantity, visible, attributes)
+        VALUES ($1, $2, $3, $4, $5, 1, $6::jsonb) RETURNING id
+      `, [m.id, name, cost, sell, qty, JSON.stringify(initialAttrs)]);
       product = { id: inserted.id, name };
     }
 
