@@ -1,9 +1,13 @@
+const crypto = require('crypto');
 const { query, queryOne, exec } = require('../lib/db');
 const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money, suggestedMargin } = require('../lib/view');
-const { sendHtml, redirect } = require('../lib/http-helpers');
+const { sendHtml, sendJson, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 const { renderAttributeFields, extractAttributes } = require('../lib/product-form');
+
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB — matches the client-side check in public/app.js
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 function productForm({ product, submitLabel, actionUrl, defaultMargin, category, merchantSections }) {
   const p = product || {};
@@ -96,6 +100,50 @@ function coerceSections(raw) {
 }
 
 function registerRoutes(router) {
+  // Uploads a product photo to Vercel Blob storage and returns its public
+  // URL. The client sends the file as a base64 data URL over JSON (the app
+  // has no multipart/form-data parser); we decode, validate, and re-upload
+  // as a real file instead of storing the image inline in Postgres — that
+  // used to make every storefront page load pull the full image data on
+  // every request.
+  router.post('/dashboard/products/upload-image', async (req, res) => {
+    const m = await getRequestMerchant(req);
+    if (!m) return sendJson(res, 401, { error: 'unauthorized' });
+
+    const b = await parseBody(req);
+    const dataUrl = typeof b.dataUrl === 'string' ? b.dataUrl : '';
+    const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/.exec(dataUrl);
+    if (!match) return sendJson(res, 400, { error: 'invalid_image' });
+
+    const contentType = match[1].toLowerCase();
+    if (!ALLOWED_IMAGE_TYPES.includes(contentType)) {
+      return sendJson(res, 400, { error: 'unsupported_type' });
+    }
+
+    const buffer = Buffer.from(match[2], 'base64');
+    if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) {
+      return sendJson(res, 400, { error: 'too_large' });
+    }
+
+    try {
+      const { put } = require('@vercel/blob');
+      const ext = contentType.split('/')[1].replace('jpeg', 'jpg');
+      const filename = `products/${m.id}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+      const blob = await put(filename, buffer, { access: 'public', contentType });
+      return sendJson(res, 200, { url: blob.url });
+    } catch (err) {
+      console.error('[upload-image]', err);
+      const msg = String((err && err.message) || '');
+      if (err && err.code === 'MODULE_NOT_FOUND') {
+        return sendJson(res, 503, { error: 'not_configured', message: 'مكتبة @vercel/blob مش متثبتة — تأكد إنها في package.json وإن الديبلوي الأخير عمل npm install' });
+      }
+      if (/BLOB_READ_WRITE_TOKEN/.test(msg)) {
+        return sendJson(res, 503, { error: 'not_configured', message: 'تخزين الصور مش متفعّل — لازم تضيف Vercel Blob للمشروع من لوحة تحكم Vercel (Storage → Create Database → Blob)' });
+      }
+      return sendJson(res, 500, { error: 'upload_failed' });
+    }
+  });
+
   router.get('/dashboard/products', async (req, res) => {
     const m = await getRequestMerchant(req);
     const rows = await query('SELECT * FROM products WHERE merchant_id = $1 ORDER BY id DESC', [m.id]);

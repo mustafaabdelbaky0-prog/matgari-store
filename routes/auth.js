@@ -1,9 +1,16 @@
 const { queryOne, exec } = require('../lib/db');
 const { getRequestMerchant } = require('../lib/req-context');
-const { hashPassword, verifyPassword, createSession, destroySession, uniqueSlug, setCookie, parseCookies } = require('../lib/auth');
+const { hashPassword, verifyPassword, createSession, destroySession, uniqueSlug, setCookie, parseCookies, SESSION_MAX_AGE_SECONDS } = require('../lib/auth');
 const { page, esc, CATEGORIES } = require('../lib/view');
 const { parseBody } = require('../lib/body');
-const { sendHtml, redirect } = require('../lib/http-helpers');
+const { sendHtml, redirect, getClientIp } = require('../lib/http-helpers');
+const rateLimit = require('../lib/rate-limit');
+
+const LOGIN_MAX_PER_PHONE = 8;   // failed attempts
+const LOGIN_WINDOW_SECONDS = 15 * 60;
+const LOGIN_MAX_PER_IP = 30;     // broader guard against credential stuffing across many numbers
+const REGISTER_MAX_PER_IP = 6;
+const REGISTER_WINDOW_SECONDS = 60 * 60;
 
 function authLayout({ title, subtitle, body, error, success }) {
   return page({
@@ -34,7 +41,7 @@ function registerRoutes(router) {
         <div class="field"><label>اسمك</label><input type="text" name="name" required placeholder="مثال: أحمد محمد"></div>
         <div class="field"><label>اسم المتجر</label><input type="text" name="store_name" required placeholder="مثال: متجر لمسة"></div>
         <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required placeholder="01xxxxxxxxx"></div>
-        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="4" placeholder="6 أحرف أو أكتر"></div>
+        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="8" placeholder="8 أحرف أو أكتر"></div>
         <button class="btn btn-primary" type="submit">إنشاء الحساب</button>
       </form>
       <div class="auth-switch">عندك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a></div>
@@ -58,15 +65,23 @@ function registerRoutes(router) {
         <div class="field"><label>اسمك</label><input type="text" name="name" required value="${esc(name)}"></div>
         <div class="field"><label>اسم المتجر</label><input type="text" name="store_name" required value="${esc(storeName)}"></div>
         <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required value="${esc(phone)}"></div>
-        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="4"></div>
+        <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="8"></div>
         <button class="btn btn-primary" type="submit">إنشاء الحساب</button>
       </form>
       <div class="auth-switch">عندك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a></div>
       `,
     }));
 
+    // Guard against automated mass account creation from a single source.
+    const ip = getClientIp(req);
+    const recentFromIp = await rateLimit.count('register', ip, REGISTER_WINDOW_SECONDS);
+    if (recentFromIp >= REGISTER_MAX_PER_IP) {
+      return fail('في محاولات تسجيل كتير من نفس المكان في وقت قصير، حاول تاني بعد شوية');
+    }
+    await rateLimit.hit('register', ip);
+
     if (!name || !storeName || !phone || !password) return fail('من فضلك املأ كل البيانات');
-    if (password.length < 4) return fail('كلمة المرور لازم تكون 4 أحرف على الأقل');
+    if (password.length < 8) return fail('كلمة المرور لازم تكون 8 أحرف على الأقل');
 
     const existing = await queryOne('SELECT id FROM merchants WHERE phone = $1', [phone]);
     if (existing) return fail('في حساب مسجل بالرقم ده بالفعل، جرب تسجيل الدخول');
@@ -79,7 +94,7 @@ function registerRoutes(router) {
     );
 
     const token = await createSession(inserted.id);
-    setCookie(res, 'session', token, { maxAge: 60 * 60 * 24 * 60 });
+    setCookie(res, 'session', token, { maxAge: SESSION_MAX_AGE_SECONDS });
     redirect(res, '/onboarding');
   });
 
@@ -102,12 +117,11 @@ function registerRoutes(router) {
     const b = await parseBody(req);
     const phone = (b.phone || '').trim();
     const password = (b.password || '').trim();
-    const merchant = await queryOne('SELECT * FROM merchants WHERE phone = $1', [phone]);
 
-    const fail = () => sendHtml(res, 400, authLayout({
+    const fail = (msg) => sendHtml(res, 400, authLayout({
       title: 'أهلاً بيك تاني',
       subtitle: 'سجّل دخولك عشان تكمل شغلك في متجرك',
-      error: 'رقم الموبايل أو كلمة المرور مش صح',
+      error: msg || 'رقم الموبايل أو كلمة المرور مش صح',
       body: `
       <form method="POST" action="/login">
         <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required value="${esc(phone)}"></div>
@@ -118,10 +132,28 @@ function registerRoutes(router) {
       `,
     }));
 
-    if (!merchant || !verifyPassword(password, merchant.password_hash)) return fail();
+    // Two layers: per-phone (stops guessing one account's password) and
+    // per-IP (stops one source from grinding through many phone numbers).
+    const ip = getClientIp(req);
+    const [failsForPhone, failsForIp] = await Promise.all([
+      phone ? rateLimit.count('login_fail', phone, LOGIN_WINDOW_SECONDS) : 0,
+      rateLimit.count('login_fail_ip', ip, LOGIN_WINDOW_SECONDS),
+    ]);
+    if (failsForPhone >= LOGIN_MAX_PER_PHONE || failsForIp >= LOGIN_MAX_PER_IP) {
+      return fail('محاولات كتير غلط، حاول تاني بعد شوية');
+    }
+
+    const merchant = await queryOne('SELECT * FROM merchants WHERE phone = $1', [phone]);
+    if (!merchant || !verifyPassword(password, merchant.password_hash)) {
+      await Promise.all([
+        phone ? rateLimit.hit('login_fail', phone) : null,
+        rateLimit.hit('login_fail_ip', ip),
+      ]);
+      return fail();
+    }
 
     const token = await createSession(merchant.id);
-    setCookie(res, 'session', token, { maxAge: 60 * 60 * 24 * 60 });
+    setCookie(res, 'session', token, { maxAge: SESSION_MAX_AGE_SECONDS });
     redirect(res, merchant.onboarded ? '/dashboard' : '/onboarding');
   });
 

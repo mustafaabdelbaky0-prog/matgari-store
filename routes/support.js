@@ -6,6 +6,12 @@ const { getRequestMerchant } = require('../lib/req-context');
 const { parseBody } = require('../lib/body');
 const { sendJson } = require('../lib/http-helpers');
 const { getCategoryConfig } = require('../lib/category-configs');
+const rateLimit = require('../lib/rate-limit');
+
+// Caps how many messages one merchant can send per hour — protects the
+// Anthropic API budget from being drained by one account (accidentally via a
+// buggy loop, or on purpose).
+const SUPPORT_MAX_PER_HOUR = 30;
 
 const SYSTEM_PROMPT = `أنت "مساعد متجري" - الدعم الفني الرسمي لتطبيق **متجري** (matgari-store).
 
@@ -67,6 +73,15 @@ function registerRoutes(router) {
     try {
       const merchant = await getRequestMerchant(req);
       if (!merchant) return sendJson(res, 401, { error: 'unauthorized' });
+
+      const usedThisHour = await rateLimit.count('support_chat', String(merchant.id), 60 * 60);
+      if (usedThisHour >= SUPPORT_MAX_PER_HOUR) {
+        return sendJson(res, 429, {
+          error: 'rate_limited',
+          reply: 'وصلت للحد الأقصى من الرسائل للساعة دي، جرب تاني بعد شوية 🙏',
+        });
+      }
+      await rateLimit.hit('support_chat', String(merchant.id));
 
       const body = await parseBody(req);
       const messages = Array.isArray(body.messages) ? body.messages : [];

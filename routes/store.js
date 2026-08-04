@@ -20,17 +20,19 @@ function registerRoutes(router) {
       [merchant.id]
     );
 
+    const host = req.headers.host || '';
+
     // Kids clothing keeps the dedicated Laila-style renderer.
     if (merchant.category === 'kids') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderKidsLanding(merchant, products));
+      res.end(renderKidsLanding(merchant, products, host));
       return;
     }
 
     // Any other configured category uses the themed renderer.
     if (getCategoryConfig(merchant.category)) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(renderThemedLanding(merchant, products));
+      res.end(renderThemedLanding(merchant, products, host));
       return;
     }
 
@@ -72,7 +74,15 @@ function registerRoutes(router) {
       <div class="footer-note">صفحة بيع بواسطة متجري 🛍️</div>
     `;
 
-    sendHtml(res, 200, page({ title: merchant.store_name, body }));
+    const ogImage = host ? `https://${host}/icons/icon-512.png` : '/icons/icon-512.png';
+    const extraHead = `
+      <meta property="og:type" content="website">
+      <meta property="og:title" content="${esc(merchant.store_name)}">
+      <meta property="og:description" content="اكتشف منتجات ${esc(merchant.store_name)} واطلب دلوقتي">
+      <meta property="og:image" content="${ogImage}">
+      <meta name="twitter:card" content="summary_large_image">
+    `;
+    sendHtml(res, 200, page({ title: merchant.store_name, body, extraHead }));
   });
 }
 

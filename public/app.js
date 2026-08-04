@@ -1,12 +1,18 @@
 // app.js — تفاعلات بسيطة بدون أي مكتبات خارجية
 document.addEventListener('DOMContentLoaded', () => {
-  // ---- تحويل الصورة المختارة إلى base64 وعرضها ----
+  // ---- رفع الصورة المختارة لتخزين خارجي (Vercel Blob) بدل تضمينها base64 ----
+  // الصورة بتتحول لـ base64 مؤقتًا في المتصفح بس عشان تتبعت للسيرفر، اللي
+  // بيرفعها لملف حقيقي ويرجّع رابط قصير — الرابط ده بس اللي بيتخزن في قاعدة
+  // البيانات وبيتبعت مع الفورم، مش الصورة كاملة.
   document.querySelectorAll('.img-upload').forEach((wrap) => {
     const fileInput = wrap.querySelector('input[type=file]');
     const hidden = wrap.querySelector('input[type=hidden]');
     const preview = wrap.querySelector('img.preview');
     const placeholder = wrap.querySelector('.placeholder');
+    const form = wrap.closest('form');
+    const submitBtn = form ? form.querySelector('button[type=submit]') : null;
     if (!fileInput) return;
+
     fileInput.addEventListener('change', () => {
       const file = fileInput.files && fileInput.files[0];
       if (!file) return;
@@ -16,13 +22,29 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
       const reader = new FileReader();
-      reader.onload = () => {
-        if (hidden) hidden.value = reader.result;
-        if (preview) {
-          preview.src = reader.result;
-          preview.style.display = 'block';
-        }
+      reader.onload = async () => {
+        // معاينة فورية محلية لحد ما الرفع يخلص.
+        if (preview) { preview.src = reader.result; preview.style.display = 'block'; }
         if (placeholder) placeholder.style.display = 'none';
+        if (hidden) hidden.value = '';
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.dataset.origLabel = submitBtn.dataset.origLabel || submitBtn.textContent; submitBtn.textContent = '⏳ جاري رفع الصورة...'; }
+        try {
+          const res = await fetch('/dashboard/products/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUrl: reader.result }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.url) throw new Error(data.message || data.error || 'upload_failed');
+          if (hidden) hidden.value = data.url;
+        } catch (err) {
+          alert('حصلت مشكلة في رفع الصورة: ' + (err.message || 'جرب تاني'));
+          if (preview) preview.style.display = 'none';
+          if (placeholder) placeholder.style.display = '';
+          fileInput.value = '';
+        } finally {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = submitBtn.dataset.origLabel; }
+        }
       };
       reader.readAsDataURL(file);
     });

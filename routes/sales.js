@@ -1,6 +1,6 @@
 const { query, queryOne, exec } = require('../lib/db');
 const { getRequestMerchant } = require('../lib/req-context');
-const { dashboardPage, esc, money } = require('../lib/view');
+const { dashboardPage, esc, money, jsonScriptSafe } = require('../lib/view');
 const { sendHtml, redirect } = require('../lib/http-helpers');
 const { parseBody } = require('../lib/body');
 const {
@@ -80,9 +80,9 @@ function registerRoutes(router) {
 
       <script>
         (function(){
-          const PRODUCTS = ${JSON.stringify(productsJs)};
-          const STOCK_LABEL = ${JSON.stringify(stockLabel)};
-          const HAS_STOCK_KEY = ${JSON.stringify(!!key)};
+          const PRODUCTS = ${jsonScriptSafe(productsJs)};
+          const STOCK_LABEL = ${jsonScriptSafe(stockLabel)};
+          const HAS_STOCK_KEY = ${jsonScriptSafe(!!key)};
           const sel = document.getElementById('sale-product-select');
           if (!sel) return;
           const block = document.getElementById('variant-sold-block');
