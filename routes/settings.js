@@ -77,6 +77,37 @@ function registerRoutes(router) {
       </div>
 
       <div class="card">
+        <div class="card-title">🔔 إشعارات الطلبات</div>
+        <p class="small muted">اختار إزاي تحب توصلك الطلبات الجديده لحد ما تتاكد. الطلب دايمًا بيتحفظ في داشبوردك.</p>
+        <form method="POST" action="/dashboard/settings/notifications" style="margin-top:12px">
+          <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer">
+            <input type="checkbox" name="channels" value="dashboard" checked disabled>
+            <span><strong>الداشبورد</strong> — دايمًا مفعّل (البادج الأحمر في الرئيسيه)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer">
+            <input type="checkbox" name="channels" value="email" ${(Array.isArray(m.notify_channels) ? m.notify_channels : []).includes('email') ? 'checked' : ''}>
+            <span><strong>📧 إيميل (Gmail)</strong> — إشعار فوري بكل الطلبات</span>
+          </label>
+          <input type="email" name="notify_email" value="${esc(m.notify_email || '')}" placeholder="ايميلك على Gmail" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;margin-bottom:10px">
+
+          <label style="display:flex;align-items:center;gap:8px;padding:10px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer">
+            <input type="checkbox" name="channels" value="telegram" ${(Array.isArray(m.notify_channels) ? m.notify_channels : []).includes('telegram') ? 'checked' : ''}>
+            <span><strong>💬 تليجرام</strong> — أسرع طريقه، إشعار فوري لموبايلك</span>
+          </label>
+          <input type="text" name="notify_telegram_chat_id" value="${esc(m.notify_telegram_chat_id || '')}" placeholder="Telegram Chat ID (شوف التعليمات تحت)" style="width:100%;padding:10px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;margin-bottom:10px;direction:ltr;text-align:left">
+          <div style="background:#EEF2FF;color:#3730A3;padding:10px 12px;border-radius:8px;font-size:12.5px;line-height:1.7;margin-bottom:10px">
+            <strong>إزاي أجيب Chat ID:</strong><br>
+            1. افتح تليجرام وابحث عن <a href="https://t.me/userinfobot" target="_blank" style="color:#4F46E5;font-weight:700">@userinfobot</a><br>
+            2. ابدأ محادثه معاه — هيبعتلك Chat ID بتاعك (رقم)<br>
+            3. انسخه هنا واحفظ<br>
+            4. ابحث عن بوت متجري وابعتله /start
+          </div>
+
+          <button class="btn btn-primary" type="submit">💾 حفظ إعدادات الإشعارات</button>
+        </form>
+      </div>
+
+      <div class="card">
         <div class="card-title">الاشتراك</div>
         <p class="small muted">شوف تفاصيل باقتك، وإداره الترقيه والتجديد</p>
         <a class="btn btn-primary" href="/dashboard/subscription" style="margin-top:10px;display:inline-block;text-decoration:none">💳 صفحه الاشتراك</a>
@@ -108,6 +139,25 @@ function registerRoutes(router) {
       [storeName, category, whatsapp, m.id]
     );
 
+    redirect(res, '/dashboard/settings');
+  });
+
+  router.post('/dashboard/settings/notifications', async (req, res) => {
+    const m = await getRequestMerchant(req);
+    const b = await parseBody(req);
+    // channels may be a string (single) or array (multiple checked); parseBody
+    // will hand us either shape.
+    let channels = b.channels;
+    if (!channels) channels = [];
+    else if (!Array.isArray(channels)) channels = [channels];
+    // Always keep 'dashboard' — it's the safety net.
+    if (!channels.includes('dashboard')) channels.push('dashboard');
+    const email = (b.notify_email || '').trim().slice(0, 200) || null;
+    const telegramId = (b.notify_telegram_chat_id || '').trim().slice(0, 60) || null;
+    await exec(
+      'UPDATE merchants SET notify_channels = $1::jsonb, notify_email = $2, notify_telegram_chat_id = $3 WHERE id = $4',
+      [JSON.stringify(channels), email, telegramId, m.id]
+    );
     redirect(res, '/dashboard/settings');
   });
 

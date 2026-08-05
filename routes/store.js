@@ -67,8 +67,8 @@ function registerRoutes(router) {
     }
 
     // Fallback: minimal listing for categories without a config (e.g. "other").
-    const wa = (merchant.whatsapp || '').replace(/[^0-9]/g, '');
-    const waNumber = wa ? (wa.startsWith('20') ? wa : wa.startsWith('0') ? `2${wa}` : `20${wa}`) : '';
+    const { renderCheckoutWidget } = require('../lib/checkout-widget');
+    const checkoutHtml = renderCheckoutWidget(merchant);
 
     const body = `
       <div class="store-hero">
@@ -84,22 +84,22 @@ function registerRoutes(router) {
       ` : `
         <div class="product-grid">
           ${products.map((p) => {
-            const msg = encodeURIComponent(`أهلاً، عايز أطلب: ${p.name} (${money(p.sell_price)})`);
-            const orderHref = waNumber ? `https://wa.me/${waNumber}?text=${msg}` : '#';
+            const escName = esc(p.name).replace(/'/g, "&#39;");
+            const attrs = `{&quot;product_id&quot;:${p.id},&quot;name&quot;:&quot;${escName}&quot;,&quot;price&quot;:${Number(p.sell_price) || 0}}`;
             return `
             <div class="product-card">
               <div class="img">${p.image ? `<img src="${p.image}">` : '🛍️'}</div>
               <div class="info">
                 <div class="name">${esc(p.name)}</div>
                 <div class="price">${money(p.sell_price)}</div>
-                ${waNumber
-                  ? `<a class="order-btn" href="${orderHref}" target="_blank">💬 اطلب الآن</a>`
-                  : `<span class="order-btn" style="background:var(--border);color:var(--muted);">اطلب الآن</span>`}
+                <button class="order-btn" onclick="openCheckout(${attrs})">🛒 اطلب الآن</button>
               </div>
             </div>`;
           }).join('')}
         </div>
       `}
+
+      ${checkoutHtml}
 
       <div class="footer-note">صفحة بيع بواسطة متجري 🛍️</div>
     `;

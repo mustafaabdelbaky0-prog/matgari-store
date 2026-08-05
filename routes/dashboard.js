@@ -4,6 +4,7 @@ const { dashboardPage, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
 const { daysLeft, bucket } = require('../lib/subscription');
 const { getPlan } = require('../lib/plans');
+const { pendingCount } = require('./orders');
 
 function registerRoutes(router) {
   router.get('/dashboard', async (req, res) => {
@@ -24,6 +25,7 @@ function registerRoutes(router) {
 
     const countRow = await queryOne('SELECT COUNT(*) AS c FROM products WHERE merchant_id = $1', [m.id]);
     const productsCount = Number(countRow.c);
+    const pendingOrders = await pendingCount(m.id);
     const lowStock = await query('SELECT * FROM products WHERE merchant_id = $1 AND quantity <= 3 ORDER BY quantity ASC LIMIT 5', [m.id]);
     const recent = await query('SELECT * FROM transactions WHERE merchant_id = $1 ORDER BY id DESC LIMIT 5', [m.id]);
 
@@ -82,6 +84,15 @@ function registerRoutes(router) {
           <span style="background:${color};color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;white-space:nowrap">${b === 'expired' ? 'جدد دلوقتي' : 'ترقيه ←'}</span>
         </a>`;
       })()}
+
+      ${pendingOrders > 0 ? `
+        <a href="/dashboard/orders?tab=pending" style="display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#FEE2E2,#FEF3C7);border:2px solid #F59E0B;color:#92400E;padding:16px 18px;border-radius:14px;margin-bottom:14px;text-decoration:none;font-weight:800;box-shadow:0 8px 20px rgba(245,158,11,.15);animation:pulse 2s infinite">
+          <span style="font-size:32px">🛒</span>
+          <span style="flex:1;font-size:15px">عندك <span style="background:#DC2626;color:#fff;padding:2px 12px;border-radius:20px;font-size:15px">${pendingOrders}</span> طلب جديد ينتظر تأكيدك</span>
+          <span style="background:#F59E0B;color:#fff;padding:8px 16px;border-radius:20px;font-size:12.5px;font-weight:800">شوف الطلبات ←</span>
+        </a>
+        <style>@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.005)}}</style>
+      ` : ''}
 
       <div class="dash-stats">
         <div class="dash-stat sales">
