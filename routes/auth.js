@@ -43,6 +43,7 @@ function registerRoutes(router) {
         <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required placeholder="01xxxxxxxxx"></div>
         <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="8" placeholder="8 أحرف أو أكتر"></div>
         <button class="btn btn-primary" type="submit">إنشاء الحساب</button>
+        <p style="font-size:12px;color:#64748B;text-align:center;margin:12px 0 0;line-height:1.6">بإنشاء الحساب أنت بتوافق على <a href="/terms" target="_blank" style="color:#4F46E5;font-weight:600">شروط الاستخدام</a> و<a href="/privacy" target="_blank" style="color:#4F46E5;font-weight:600">سياسه الخصوصيه</a></p>
       </form>
       <div class="auth-switch">عندك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a></div>
       `,
@@ -67,6 +68,7 @@ function registerRoutes(router) {
         <div class="field"><label>رقم الموبايل</label><input type="tel" name="phone" required value="${esc(phone)}"></div>
         <div class="field"><label>كلمة المرور</label><input type="password" name="password" required minlength="8"></div>
         <button class="btn btn-primary" type="submit">إنشاء الحساب</button>
+        <p style="font-size:12px;color:#64748B;text-align:center;margin:12px 0 0;line-height:1.6">بإنشاء الحساب أنت بتوافق على <a href="/terms" target="_blank" style="color:#4F46E5;font-weight:600">شروط الاستخدام</a> و<a href="/privacy" target="_blank" style="color:#4F46E5;font-weight:600">سياسه الخصوصيه</a></p>
       </form>
       <div class="auth-switch">عندك حساب بالفعل؟ <a href="/login">تسجيل الدخول</a></div>
       `,

@@ -7,7 +7,8 @@
 
 const { exec } = require('../lib/db');
 const { parseBody } = require('../lib/body');
-const { sendJson } = require('../lib/http-helpers');
+const { sendJson, sendHtml } = require('../lib/http-helpers');
+const { renderTerms, renderPrivacy } = require('../lib/legal');
 
 const SYSTEM_PROMPT = `أنت مساعد تسويقي ذكي لتطبيق **متجري** — منصه لفتح متاجر أونلاين بسرعه.
 
@@ -116,6 +117,9 @@ function registerRoutes(router) {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(renderDemoStore());
   });
+
+  router.get('/terms', (req, res) => sendHtml(res, 200, renderTerms()));
+  router.get('/privacy', (req, res) => sendHtml(res, 200, renderPrivacy()));
 }
 
 function renderDemoStore() {
