@@ -91,7 +91,8 @@ function registerRoutes(router) {
     const slug = await uniqueSlug(storeName);
     const passwordHash = hashPassword(password);
     const inserted = await queryOne(
-      'INSERT INTO merchants (name, phone, password_hash, store_name, slug) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+      `INSERT INTO merchants (name, phone, password_hash, store_name, slug, subscription_status, subscription_plan, subscription_expires_at)
+       VALUES ($1, $2, $3, $4, $5, 'trial', 'trial', NOW() + INTERVAL '30 days') RETURNING id`,
       [name, phone, passwordHash, storeName, slug]
     );
 

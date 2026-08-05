@@ -4,6 +4,31 @@ const { sendHtml } = require('../lib/http-helpers');
 const { renderKidsLanding } = require('../lib/kids-landing');
 const { renderThemedLanding } = require('../lib/themed-landing');
 const { getCategoryConfig } = require('../lib/category-configs');
+const { isActive } = require('../lib/subscription');
+
+function renderClosedStore(merchant) {
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(merchant.store_name)} — متجر مغلق مؤقتًا</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:'Cairo',sans-serif;background:linear-gradient(135deg,#F8FAFC,#EEF2FF);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#0F172A}
+  .box{background:#fff;border-radius:20px;padding:40px 30px;max-width:460px;text-align:center;box-shadow:0 20px 60px rgba(15,23,42,.12)}
+  .ic{font-size:56px;margin-bottom:14px}
+  h1{margin:0 0 10px;font-size:24px}
+  p{color:#475569;line-height:1.75;margin:0 0 20px;font-size:15px}
+  .store{font-weight:700;color:#4F46E5}
+  .btn{display:inline-block;background:#4F46E5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:700;margin-top:8px}
+</style></head><body>
+<div class="box">
+  <div class="ic">🔒</div>
+  <h1>المتجر مغلق مؤقتًا</h1>
+  <p>متجر <span class="store">${esc(merchant.store_name)}</span> غير متاح للطلبات في الوقت الحالي.<br>لو صاحب المتجر ده انت، سجّل دخولك عشان تجدد اشتراكك.</p>
+  <a class="btn" href="/">🏠 الرجوع لمتجري</a>
+</div>
+</body></html>`;
+}
 
 function registerRoutes(router) {
   router.get('/store/:slug', async (req, res, params) => {
@@ -13,6 +38,11 @@ function registerRoutes(router) {
         title: 'المتجر غير موجود',
         body: `<div class="empty" style="padding-top:80px;"><div class="big">🔍</div>الرابط ده مش موجود أو اتغيّر</div>`,
       }));
+    }
+
+    // Enforce subscription: closed page when trial expired / status cancelled.
+    if (!isActive(merchant)) {
+      return sendHtml(res, 200, renderClosedStore(merchant));
     }
 
     const products = await query(
