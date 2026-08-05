@@ -18,6 +18,7 @@ require('../routes/cash').registerRoutes(router);
 require('../routes/settings').registerRoutes(router);
 require('../routes/store').registerRoutes(router);
 require('../routes/support').registerRoutes(router);
+require('../routes/marketing').registerRoutes(router);
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const MIME = {
