@@ -2,6 +2,8 @@ const { queryOne, query } = require('../lib/db');
 const { getRequestMerchant } = require('../lib/req-context');
 const { dashboardPage, esc, money, categoryLabel } = require('../lib/view');
 const { sendHtml } = require('../lib/http-helpers');
+const { daysLeft, bucket } = require('../lib/subscription');
+const { getPlan } = require('../lib/plans');
 
 function registerRoutes(router) {
   router.get('/dashboard', async (req, res) => {
@@ -60,6 +62,26 @@ function registerRoutes(router) {
         .store-link-card .slc-btn.ghost{background:#fff;color:#374151;border-color:#e5e7eb}
         .store-link-card .slc-btn.ghost:hover{background:#f9fafb}
       </style>
+
+      ${(() => {
+        const dl = daysLeft(m.subscription_expires_at);
+        const b = bucket(m);
+        if (b === 'ok') return '';
+        const plan = getPlan(m.subscription_plan);
+        const color = b === 'expired' ? '#DC2626' : (b === 'urgent' ? '#F59E0B' : '#F59E0B');
+        const bg = b === 'expired' ? '#FEE2E2' : '#FEF3C7';
+        const border = b === 'expired' ? '#FCA5A5' : '#FCD34D';
+        const text = b === 'expired' ? '#991B1B' : '#92400E';
+        const icon = b === 'expired' ? '⛔' : (b === 'urgent' ? '🔥' : '⚠️');
+        const msg = b === 'expired'
+          ? `اشتراكك انتهى — صفحه متجرك مقفوله للعملاء دلوقتي.`
+          : `اشتراك ${esc(plan.name)} بيخلص خلال ${dl} يوم.`;
+        return `<a href="/dashboard/subscription" style="display:flex;align-items:center;gap:12px;background:${bg};border:1.5px solid ${border};color:${text};padding:14px 16px;border-radius:14px;margin-bottom:14px;text-decoration:none;font-weight:700;font-size:14px">
+          <span style="font-size:22px">${icon}</span>
+          <span style="flex:1">${msg}</span>
+          <span style="background:${color};color:#fff;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:800;white-space:nowrap">${b === 'expired' ? 'جدد دلوقتي' : 'ترقيه ←'}</span>
+        </a>`;
+      })()}
 
       <div class="dash-stats">
         <div class="dash-stat sales">

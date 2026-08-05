@@ -77,6 +77,12 @@ function registerRoutes(router) {
       </div>
 
       <div class="card">
+        <div class="card-title">الاشتراك</div>
+        <p class="small muted">شوف تفاصيل باقتك، وإداره الترقيه والتجديد</p>
+        <a class="btn btn-primary" href="/dashboard/subscription" style="margin-top:10px;display:inline-block;text-decoration:none">💳 صفحه الاشتراك</a>
+      </div>
+
+      <div class="card">
         <div class="card-title">الحساب</div>
         <p class="small muted">${esc(m.name)} · ${esc(m.phone)}</p>
         <form method="POST" action="/logout" style="margin-top:12px;">
