@@ -6,6 +6,7 @@ const Router = require('../lib/router');
 const { getMerchantFromToken, parseCookies } = require('../lib/auth');
 const { redirect } = require('../lib/http-helpers');
 const { runWithContext, setRequestMerchant } = require('../lib/req-context');
+const { renderMarketing } = require('../lib/marketing');
 
 const router = new Router();
 require('../routes/auth').registerRoutes(router);
@@ -68,7 +69,10 @@ async function handle(req, res) {
 
   if (pathname === '/') {
     if (merchant) return redirect(res, ob === 1 ? '/dashboard' : '/onboarding');
-    return redirect(res, '/login');
+    // Logged-out visitors get the marketing landing page.
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(renderMarketing(req.headers.host || ''));
+    return;
   }
   if ((pathname === '/login' || pathname === '/register') && merchant && req.method === 'GET') {
     return redirect(res, ob === 1 ? '/dashboard' : '/onboarding');
